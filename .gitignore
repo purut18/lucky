@@ -1,0 +1,18 @@
+# Virtual environment
+venv/
+
+# Environment variables (sensitive API keys, etc.)
+.env
+
+# Python caching
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# OS metadata
+.DS_Store
+
+# legacy code
+legacy/

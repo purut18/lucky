@@ -1,0 +1,9 @@
+sounddevice
+vosk
+numpy
+pynput
+faster-whisper
+torch
+transformers
+peft
+python-dotenv
