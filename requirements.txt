@@ -7,3 +7,5 @@ torch
 transformers
 peft
 python-dotenv
+unsloth
+outlines

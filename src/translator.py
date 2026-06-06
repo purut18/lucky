@@ -1,87 +1,160 @@
 """
-This module manages the command translation process. It takes natural language text and uses a large language model (LLM) to convert it into a valid macOS AppleScript (osascript).
-Specifically, it wraps Hugging Face's SmolLM2-1.7B-Instruct model with a LoRA (Low-Rank Adaptation) adapter fine-tuned specifically to write AppleScript.
+This module manages the command translation process, transforming spoken or typed natural language
+commands into valid, structured JSON actions conforming to predefined Pydantic schemas in actions.py.
 
-Technical Details:
-- Uses the Hugging Face 'transformers' and 'peft' libraries to load base and adapter weights.
-- AutoModelForCausalLM is loaded using bfloat16 (16-bit brain floating point format) for memory savings and speed.
-- Employs device mapping (using MPS/Metal Performance Shaders on macOS, or fallback CPU).
-- Wraps the base model with PeftModel to attach the task-specific LoRA adapter weights.
-- Employs greedy generation (do_sample=False) to ensure deterministic translation output.
-- Decodes output tokens and crops prompts using token lengths.
+To ensure absolute reliability, it uses outlines' grammar state machine (constrained decoding)
+to mathematically restrict the model's token output probabilities, forcing it to generate
+only JSON matching the schema.
+
+Technical Specifications:
+- Uses Unsloth's FastLanguageModel for 4-bit optimized loading on CUDA-capable systems.
+- Gracefully falls back to Hugging Face's standard Transformers and PEFT on CPU/MPS (macOS).
+- Uses outlines for guided JSON generation via Finite State Machine (FSM) compiled schemas.
+- Implements a dynamic caching mechanism to build and compile the outlines generator once,
+  maximizing subsequent inference speeds.
+- Applies a runtime monkeypatch to outlines' tokenizer hashing to prevent pickle-dill crashes
+  caused by Python 3.14 stable ABI differences.
 """
 
-# Import the PyTorch library to manage tensors and hardware resources like graphic processors
+# Import PyTorch library to check hardware environments and map tensor values
 import torch
 
-# Import AutoTokenizer and AutoModelForCausalLM to download and load our pre-trained AI language model and token decoder
-from transformers import AutoTokenizer, AutoModelForCausalLM
+# Dynamically decide if we can use Unsloth's optimized CUDA kernels, otherwise fall back to Transformers/PEFT
+try:
+    # Check if a CUDA-enabled GPU is accessible on the system
+    if torch.cuda.is_available():
+        # Import FastLanguageModel from the unsloth library
+        from unsloth import FastLanguageModel
+        HAS_UNSLOTH = True
+    else:
+        # Fall back because we are in a non-CUDA environment like macOS MPS/CPU
+        HAS_UNSLOTH = False
+except ImportError:
+    # Fall back if unsloth library is not installed in the environment
+    HAS_UNSLOTH = False
 
-# Import PeftModel from the peft library to attach fine-tuning adapter layers (LoRA) to our base language model
-from peft import PeftModel
+# Import standard Hugging Face components if Unsloth is not active
+if not HAS_UNSLOTH:
+    # AutoTokenizer and AutoModelForCausalLM are used to download and instantiate weights and vocabularies
+    from transformers import AutoTokenizer, AutoModelForCausalLM
+    # PeftModel wraps the base causal model with parameter-efficient fine-tuning LoRA adapters
+    from peft import PeftModel
+
+# Import standard datetime module to supply dynamic date and time to system context
+from datetime import datetime
+
+# Global cache variable to store the outlines JSON generator across inference cycles
+_generator = None
+
+# Define the training-aligned system prompt template for routing actions
+SYSTEM_TEMPLATE = """
+You are a precise macOS system routing core. Your only objective is to translate natural language commands into a single, minimized, valid JSON object.
+
+Strict Rules:
+1. Output ONLY raw, valid JSON. Do not include markdown code blocks (```json), conversational text, or explanations.
+2. Select the specific "app" and "action" that matches the user's explicit intent.
+3. If the command is ambiguous, asks for conversational fluff, or requests an action outside your capabilities, you MUST route to the fallback trigger exactly: {{"app":"router","action":"do-nothing","params":{{}}}}
+
+System Context:
+- Current Date: {current_date}
+- Current Time: {current_time}
+"""
 
 def load_translation_model(base_model_name, adapter_model_name, execution_device):
     """
-    Downloads and loads the base tokenizer, base causal LM, and LoRA adapter weights.
-    Returns the loaded model and its tokenizer in eval mode.
+    Loads the causal language model and tokenizer using the most optimized framework.
+    Uses Unsloth FastLanguageModel on CUDA, and falls back to standard HF/PEFT on CPU/MPS.
     """
-    # Load the base model's tokenizer to translate words/characters into numbers that the AI understands
-    tokenizer = AutoTokenizer.from_pretrained(base_model_name)
-    
-    # Load the base causal language model using 16-bit floating points (bfloat16) on the specified device (MPS or CPU)
-    base_model = AutoModelForCausalLM.from_pretrained(
-        base_model_name,
-        torch_dtype=torch.bfloat16,
-        device_map=execution_device
-    )
-    
-    # Wrap the base model with our custom LoRA adapter model, which holds the rules for writing macOS command code
-    model = PeftModel.from_pretrained(base_model, adapter_model_name)
-    
-    # Set the model to evaluation (eval) mode to deactivate training behaviors like dropout
-    model.eval()
-    
+    # Check if we should use the CUDA-optimized Unsloth loading strategy
+    if HAS_UNSLOTH:
+        # Load the base model and Lora adapter in 4-bit precision with a 2048 token sequence limit
+        model, tokenizer = FastLanguageModel.from_pretrained(
+            model_name = adapter_model_name,
+            max_seq_length = 2048,
+            dtype = None, # Automatic dtype resolution
+            load_in_4bit = True, # Enable 4-bit quantization
+        )
+        # Configure model parameters for optimized inference mode
+        FastLanguageModel.for_inference(model)
+    else:
+        # Fallback path for local macOS execution without CUDA
+        # Instantiate the model's vocabulary and string encoders
+        tokenizer = AutoTokenizer.from_pretrained(base_model_name)
+        # Load the base model in 16-bit brain float format mapped to execution device (MPS or CPU)
+        base_model = AutoModelForCausalLM.from_pretrained(
+            base_model_name,
+            torch_dtype=torch.bfloat16,
+            device_map=execution_device
+        )
+        # Layer the fine-tuned LoRA adapters over the base model
+        model = PeftModel.from_pretrained(base_model, adapter_model_name)
+        # Set the model to evaluation (eval) mode to disable training dropouts
+        model.eval()
+        
     # Return both the combined model and its tokenizer back to the orchestrator script
     return model, tokenizer
 
 def translate_command(model, tokenizer, command_text, execution_device):
     """
-    Formats the user's spoken command into a structured chat template,
-    runs inference through the LLM, and decodes the result into AppleScript code.
+    Formats the spoken command using ChatML prompts, and passes it to the outlines-guided
+    grammar decoder to generate mathematically valid JSON matching the action schemas.
     """
-    # Define system instructions and user request as a list of role-play dictionaries
-    messages = [
-        # Inform the system of its role: acting as a highly precise system command converter
-        {"role": "system", "content": "You are an expert system utility that translates natural language commands accurately into macOS osascript execution lines."},
-        # Give the model the actual spoken text we want to turn into executable macOS code
-        {"role": "user", "content": f"Convert this command to osascript: {command_text}"}
-    ]
+    global _generator
     
-    # Format the message lists into a single text prompt using the model's preferred chat style template
-    prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    # Initialize and compile the outlines JSON generator if it is not cached
+    if _generator is None:
+        # Import outlines library to access the structured generation engine
+        import outlines
+        
+        # Import the tokenizer wrapper class from outlines to register token mapping
+        from outlines.models.transformers import TransformerTokenizer
+        
+        # Apply a runtime monkeypatch to the __hash__ method to avoid dill pickle crashes on Python 3.14
+        TransformerTokenizer.__hash__ = lambda self: hash(id(self.tokenizer))
+        
+        # Import the standard reflection module inspect to dynamically read schemas
+        import inspect
+        # Import BaseModel and RootModel to handle Pydantic validation and schema definitions
+        from pydantic import BaseModel, RootModel
+        # Import Union to handle multiple type branches programmatically
+        from typing import Union
+        # Import the project actions module containing macOS schema specifications
+        from src import actions
+        
+        # Query all class definitions in actions.py that subclass Pydantic's BaseModel
+        action_classes = [
+            obj for name, obj in inspect.getmembers(actions, inspect.isclass)
+            if issubclass(obj, BaseModel) and obj is not BaseModel
+        ]
+        
+        # Build a Pydantic RootModel representing the union of all registered action schemas
+        ActionUnion = RootModel[Union[*action_classes]]
+        
+        # Import the outlines model wrapper class for standard transformers
+        from outlines.models.transformers import Transformers
+        # Wrap our model and tokenizer inside outlines' custom model interface
+        outlines_model = Transformers(model, tokenizer)
+        
+        # Compile the FSM index and initialize the JSON schema guided generator
+        _generator = outlines.generate.json(outlines_model, ActionUnion)
+
+    # Get the current dynamic system date and time
+    now = datetime.now()
+    current_date = now.strftime("%Y-%m-%d")
+    current_time = now.strftime("%H:%M:%S")
+
+    # Format the prompt using the ChatML training layout
+    prompt = (
+        f"<|im_start|>system\n{SYSTEM_TEMPLATE.format(current_date=current_date, current_time=current_time)}<|im_end|>\n"
+        f"<|im_start|>user\n{command_text}<|im_end|>\n"
+        f"<|im_start|>assistant\n"
+    )
     
-    # Convert the prompt text into integer tensor coordinates and place them on our device (MPS/CPU)
-    inputs = tokenizer(prompt, return_tensors="pt").to(execution_device)
+    # Generate the action using the grammar state machine generator
+    result = _generator(prompt)
     
-    # Disable gradient computations to save computer memory and speed up the generation process
-    with torch.no_grad():
-        # Ask the model to generate output tokens up to a limit of 128 new tokens, using greedy decoding
-        outputs = model.generate(
-            # Pass our tokenized inputs as keyword arguments
-            **inputs,
-            # Set the maximum number of new tokens to create before stopping
-            max_new_tokens=128,
-            # Set sampling to False to always pick the most likely word (greedy decoding) for absolute stability
-            do_sample=False,
-            # Pass the end-of-string token identifier to let the generator know when it can stop early
-            pad_token_id=tokenizer.eos_token_id
-        )
+    # Extract the raw, minimized JSON string from the Pydantic RootModel response
+    json_action = result.model_dump_json()
     
-    # Slice the output tokens to keep only the newly generated ones, throwing away the input prompt tokens
-    generated_tokens = outputs[0][inputs.input_ids.shape[-1]:]
-    
-    # Translate the generated output tokens back into readable string code, skipping system markers
-    osascript_code = tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
-    
-    # Return the generated AppleScript code string
-    return osascript_code
+    # Return the generated action JSON string
+    return json_action

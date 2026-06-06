@@ -29,10 +29,10 @@ HF_TOKEN = os.environ.get("HF_TOKEN")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 # Define the base command translation model name from Hugging Face that we want to download and run
-BASE_MODEL = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
+BASE_MODEL = "unsloth/Qwen2.5-Coder-1.5B-Instruct"
 
 # Define the adapter model name, which holds extra training info to teach our model how to write macOS command scripts
-ADAPTER_MODEL = "thakkar-puru/smollm2-osascript-lora"
+ADAPTER_MODEL = "models/cmd_to_action_model_1"
 
 # Set the sound recording rate to 16000 Hertz, which is the standard speed that speech recognition models expect
 SAMPLE_RATE = 16000
