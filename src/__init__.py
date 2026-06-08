@@ -21,3 +21,6 @@ from . import translator
 
 # Let's import executor module so that commands can be run seamlessly on the system terminal
 from . import executor
+
+# Let's import bridge module so that Pydantic actions can be translated to executable scripts
+from . import bridge

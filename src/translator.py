@@ -138,9 +138,12 @@ def translate_command(model, tokenizer, command_text, execution_device):
         # Compile the FSM index and initialize the JSON schema guided generator
         _generator = outlines.generate.json(outlines_model, ActionUnion)
 
-    # Get the current dynamic system date and time
+    # Retrieve the current local date and time as a datetime object instance using the system's timezone.
     now = datetime.now()
-    current_date = now.strftime("%Y-%m-%d")
+    # Format the retrieved datetime instance into a human-readable, locale-specific date string representation.
+    current_date = now.strftime("%A, %Y-%m-%d")
+    # Format the current time using 24-hour hour representation (%H), zero-padded minute representation (%M),
+    # and zero-padded second representation (%S), producing a string format like "HH:MM:SS" for exact chronological ordering.
     current_time = now.strftime("%H:%M:%S")
 
     # Format the prompt using the ChatML training layout

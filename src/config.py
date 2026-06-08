@@ -32,7 +32,7 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 BASE_MODEL = "unsloth/Qwen2.5-Coder-1.5B-Instruct"
 
 # Define the adapter model name, which holds extra training info to teach our model how to write macOS command scripts
-ADAPTER_MODEL = "models/cmd_to_action_model_1"
+ADAPTER_MODEL = "models/cmd_to_action_model_3"
 
 # Set the sound recording rate to 16000 Hertz, which is the standard speed that speech recognition models expect
 SAMPLE_RATE = 16000

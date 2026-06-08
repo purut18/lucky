@@ -9,6 +9,108 @@ Technical Specifications:
 - Models subclass Pydantic's BaseModel for automated schema generation and serialization.
 - Literals (using typing.Literal) define fixed app and action names.
 - Optional parameters are explicitly annotated with default values of None.
+
+================================================================================
+ACTION TO TRANSLATOR BRIDGE REFERENCE MAP
+================================================================================
+Each action class in this file is mapped to a corresponding translation function
+in src/bridge.py, which converts Pydantic fields into macOS executable scripts:
+
+Finder Actions (src/bridge.py):
+- FinderOpen                     => translate_finder_open()
+- FinderClose                    => translate_finder_close()
+- FinderEmptyTrash               => translate_finder_empty_trash()
+- FinderGetActiveWindowPath      => translate_finder_get_active_window_path()
+- FinderCreateFolder             => translate_finder_create_folder()
+
+System Actions (src/bridge.py):
+- SystemSetVolume                => translate_system_set_volume()
+- SystemUpdateVolume             => translate_system_update_volume()
+- SystemSetBrightness            => translate_system_set_brightness()
+- SystemUpdateBrightness         => translate_system_update_brightness()
+- SystemReadVolume               => translate_system_read_volume()
+- SystemHideApps                 => translate_system_hide_apps()
+- SystemEjectDisks               => translate_system_eject_disks()
+- SystemToggleDarkMode           => translate_system_toggle_dark_mode()
+- SystemSleep                    => translate_system_sleep()
+- SystemShutDown                 => translate_system_shutdown()
+- SystemRestart                  => translate_system_restart()
+- SystemLockScreen               => translate_system_lock_screen()
+
+Safari Actions (src/bridge.py):
+- SafariOpen                     => translate_safari_open()
+- SafariClose                    => translate_safari_close()
+- SafariNewTab                   => translate_safari_new_tab()
+- SafariCloseTab                 => translate_safari_close_tab()
+- SafariGetActiveTabURL          => translate_safari_get_active_tab_url()
+- SafariGetActiveTabTitle        => translate_safari_get_active_tab_title()
+- SafariNavigateTab              => translate_safari_navigate_tab()
+- SafariRefreshPage              => translate_safari_refresh_page()
+
+Chrome Actions (src/bridge.py):
+- ChromeOpen                     => translate_chrome_open()
+- ChromeClose                    => translate_chrome_close()
+- ChromeNewTab                   => translate_chrome_new_tab()
+- ChromeCloseTab                 => translate_chrome_close_tab()
+- ChromeGetActiveTabURL          => translate_chrome_get_active_tab_url()
+- ChromeNavigateTab              => translate_chrome_navigate_tab()
+- ChromeRefreshPage              => translate_chrome_refresh_page()
+- ChromeOpenNewWindow            => translate_chrome_open_new_window()
+
+Apple Music Actions (src/bridge.py):
+- AppleMusicOpen                 => translate_apple_music_open()
+- AppleMusicClose                => translate_apple_music_close()
+- AppleMusicTrackChange          => translate_apple_music_change_track()
+- AppleMusicTogglePlayback       => translate_apple_music_toggle_playback()
+- AppleMusicGetPlayingSongDetails=> translate_apple_music_get_playing_song_details()
+- AppleMusicAddToFavorites       => translate_apple_music_add_to_favorites()
+- AppleMusicRemoveFromFavorites  => translate_apple_music_remove_from_favorites()
+- AppleMusicShuffle              => translate_apple_music_shuffle()
+- AppleMusicRepeat               => translate_apple_music_repeat()
+
+Spotify Actions (src/bridge.py):
+- SpotifyOpen                    => translate_spotify_open()
+- SpotifyClose                   => translate_spotify_close()
+- SpotifyTrackChange             => translate_spotify_change_track()
+- SpotifyTogglePlayback          => translate_spotify_toggle_playback()
+- SpotifyGetPlayingSongDetails   => translate_spotify_get_playing_song_details()
+- SpotifyShuffle                 => translate_spotify_shuffle()
+- SpotifyRepeat                  => translate_spotify_repeat()
+- SpotifySearchAndPlay           => translate_spotify_search_and_play()
+
+Notes Actions (src/bridge.py):
+- NotesOpen                      => translate_notes_open()
+- NotesClose                     => translate_notes_close()
+- NotesGetNotes                  => translate_notes_get_notes()
+- NotesCreateNote                => translate_notes_create_note()
+- NotesGetNoteContent            => translate_notes_get_note_content()
+- NotesAddToNote                 => translate_notes_update_note()
+
+Calendar Actions (src/bridge.py):
+- CalendarOpen                   => translate_calendar_open()
+- CalendarClose                  => translate_calendar_close()
+- CalendarGetEvents              => translate_calendar_get_events()
+- CalendarCreateEvent            => translate_calendar_create_event()
+- CalendarUpdateEvent            => translate_calendar_update_event()
+- CalendarReadEvent              => translate_calendar_read_event()
+
+Reminders Actions (src/bridge.py):
+- RemindersOpen                  => translate_reminders_open()
+- RemindersClose                 => translate_reminders_close()
+- RemindersGetReminders          => translate_reminders_get_reminders()
+- RemindersCreateReminder        => translate_reminders_create_reminder()
+- RemindersUpdateReminder        => translate_reminders_update_reminder()
+- RemindersDeleteReminder        => translate_reminders_delete_reminder()
+
+TextEdit Actions (src/bridge.py):
+- TextEditOpen                   => translate_textedit_open()
+- TextEditClose                  => translate_textedit_close()
+- TextEditNewDocument            => translate_textedit_new_document()
+- TextEditOpenDocument           => translate_textedit_open_document()
+
+Router Actions (src/bridge.py):
+- RouterDoNothing                => translate_router_do_nothing()
+- RouterLlmAgent                 => translate_router_llm_agent() [SKIPPED FOR NOW]
 """
 
 # Import the typing library's Optional wrapper to declare fields that can accept either None or their nominal types at runtime
@@ -306,6 +408,21 @@ class SystemLockScreen(BaseModel):
     params: EmptyParams
 
 
+class SystemToggleWifiParams(BaseModel):
+    state: Literal["on", "off"]
+
+class SystemToggleWifi(BaseModel):
+    """
+    Main action routing class definition mapping for parsing 'system.toggle_wifi' structured actions
+    """
+    # Fixed literal string identifying the target application module category
+    app: Literal["system"]
+    # Fixed literal string identifying the specific routing execution endpoint verb
+    action: Literal["toggle_wifi"]
+    # Nested namespace block to validate parameter inputs mapped to their respective formats
+    params: SystemToggleWifiParams
+
+
 # ==========================================
 # SAFARI ACTIONS
 # ==========================================
@@ -557,6 +674,13 @@ class ChromeRefreshPage(BaseModel):
     # Nested namespace block to validate parameter inputs mapped to their respective formats
     params: EmptyParams
 
+class ChromeOpenNewWindowParams(BaseModel):
+    """
+    Parameter schema for action google chrome.open_new_window.
+    """
+    # Parameter attribute validation constraint field mapping for incoming 'url' arguments
+    url: Optional[str] = None
+
 # Main action routing class definition mapping for parsing 'google chrome.open_new_window' structured actions
 class ChromeOpenNewWindow(BaseModel):
     """
@@ -567,7 +691,7 @@ class ChromeOpenNewWindow(BaseModel):
     # Fixed literal string identifying the specific routing execution endpoint verb
     action: Literal["open_new_window"]
     # Nested namespace block to validate parameter inputs mapped to their respective formats
-    params: EmptyParams
+    params: ChromeOpenNewWindowParams
 
 
 # ==========================================
