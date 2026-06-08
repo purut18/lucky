@@ -33,6 +33,12 @@ from typing import Union
 
 # Import the base actions module containing the Pydantic models for structured actions
 from src import actions
+# Import the custom background agent module to execute parallel, non-blocking LLM queries on daemon threads.
+# This import enables calling start_agent_thread when a router.llm-agent action is received.
+from src import agent
+# Import the custom audio module to record or play back sound clips/alerts.
+# This enables playing confirmation or completion sounds during action execution.
+from src import audio
 
 def parse_duration_to_minutes(duration_str: str) -> int:
     """
@@ -368,6 +374,8 @@ def translate_system_toggle_wifi(action: actions.SystemToggleWifi) -> str:
         f"networksetup -setairportpower \"$device\" {state}; "
         f"fi"
     )
+
+    audio.play_audio("audio/done.mp3", wait=False)
 
     # Return the formatted shell command string to be executed inside a subprocess shell shell environment.
     # We strip trailing/leading spaces to guarantee a clean string payload structure.
@@ -1040,7 +1048,7 @@ def translate_spotify_search_and_play(action: actions.SpotifySearchAndPlay) -> s
     script = f"""
 tell application "Spotify"
     activate reopen
-    delay 3 -- Allows Spotify window to come to focus
+    delay 5 -- Allows Spotify window to come to focus
 end tell
 
 tell application "System Events"
@@ -1171,6 +1179,11 @@ def translate_notes_update_note(action: actions.NotesAddToNote) -> str:
     content = action.params.content
     # Construct script performing HTML appending or fresh note creation
     script = f"""
+tell application "Notes"
+    activate
+    reopen
+end tell
+
 tell application "Notes"
     set matchingNotes to every note whose name is "{title}"
     if (count of matchingNotes) > 0 then
@@ -1670,11 +1683,21 @@ def translate_router_do_nothing(action: actions.RouterDoNothing) -> str:
 
 def translate_router_llm_agent(action: actions.RouterLlmAgent) -> None:
     """
-    Translates router.llm-agent.
-    - This is delegated to LLM flow and skipped by script execution.
-    - Returns None as execution bypass.
+    Translates router.llm-agent actions by starting a background agent execution thread.
+    - Spawns the custom LLM agent in a background daemon thread to run concurrently.
+    - Plays a verification audio tone asynchronously to confirm initialization of the agent.
+    - Returns None as execution bypass to signal that no direct system shell command needs to run immediately.
+    
+    Technical Details:
+    - Extracts the task instruction from the action payload parameters.
+    - Uses the background agent's threading engine to trigger the execution queue.
+    - Invokes the universal audio utility to execute 'afplay' asynchronously.
     """
-    # Return None to signal bypass
+    # Extract the natural language prompt or instruction task from the action parameters object
+    task_prompt = action.params.task
+    # Delegate task prompt processing to the parallel thread starter in the agent module
+    agent.start_agent_thread(task_prompt)
+    # Return None as execution bypass to signal that no immediate system command execution is queued
     return None
 
 # ==============================================================================
