@@ -31,6 +31,8 @@ from src import executor
 
 # Import our bridge module to convert Pydantic action models to macOS terminal/AppleScript commands
 from src import bridge
+# Import the custom background agent module to scan for and resume any pending tasks upon application load
+from src import agent
 
 def main():
     """
@@ -40,6 +42,16 @@ def main():
     This function acts as the main program driver, initializing all necessary subsystems
     and maintaining the event-driven transcription-to-execution pipeline loop.
     """
+    # Initiate the background polling recovery thread scanning step to handle durably stored records.
+    # We call resume_pending_agents to scan the local tracking database and resume pending agent threads.
+    try:
+        # Execute the scanner recovery routine from the background agent module
+        agent.resume_pending_agents()
+    # Catch any unexpected file system or parsing errors to prevent startup initialization failures
+    except Exception as recovery_err:
+        # Write out a warning message informing the user that startup recovery scanner failed
+        print(f"Warning: Failed to resume pending background agents: {recovery_err}")
+
     # Initialize an empty dictionary to store the Whisper model instances in-memory
     models = {}
 
@@ -161,7 +173,7 @@ def main():
             # Check if our transcription result is non-empty before processing
             if command_text:
                 # Update status showing the translation process has started
-                sys.stdout.write("\r\033[K[Translating command...]")
+                sys.stdout.write("\n\r\033[K[Translating command...]")
                 # Flush stdout to present the translation message in terminal
                 sys.stdout.flush()
                 
@@ -174,7 +186,7 @@ def main():
                 )
                 
                 # Output user spoken command on screen
-                sys.stdout.write(f"\r\033[K[Command]: {command_text}\n")
+                sys.stdout.write(f"\n\r\033[K[Command]: {command_text}\n")
                 # Output generated JSON action schema on screen
                 sys.stdout.write(f"[Generated JSON]: {json_action_str}\n")
                 # Flush output stream to sync print operations
@@ -198,7 +210,7 @@ def main():
                     # If action object translated into an empty script, log as skipped
                     else:
                         # Print skip notice
-                        sys.stdout.write("[Action skipped / Not implemented for script execution]\n")
+                        # sys.stdout.write("[Action skipped / Not implemented for script execution]\n")
                         # Flush stdout
                         sys.stdout.flush()
                 # Catch failures in parsing JSON, validation issues or bridge-to-OS command translation

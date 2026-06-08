@@ -2,10 +2,12 @@ sounddevice
 vosk
 numpy
 pynput
-faster-whisper
+faster-wh
+isper
 torch
 transformers
 peft
 python-dotenv
 unsloth
 outlines
+openai

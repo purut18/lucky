@@ -1,0 +1,32 @@
+{
+    "resp_068fed8421fd848b006a26f3779d80819092832bc9aa4d4a90": {
+        "task": "What is 5 + 5? Target filename: 'MathAnswer'",
+        "status": "completed",
+        "created_at": 1780937592.992814,
+        "file_name": "MathAnswer"
+    },
+    "resp_02c79d69e91c8270006a26f487de988195acad031363f51cd7": {
+        "task": "run an agent and research the thesis that Lightspeed operates on; summarize both the pros and cons of AI in the future.",
+        "status": "completed",
+        "created_at": 1780937864.733935,
+        "file_name": "LightspeedAIThesis"
+    },
+    "resp_0a57d7ac2fcf18c1006a26fd0ad7088195a7ceec8957349ccd": {
+        "task": "find the thesis of light speed ventures and what they usually invest in, especially in AI startups.",
+        "status": "completed",
+        "created_at": 1780940043.845736,
+        "file_name": "LightspeedInvestmentThesis"
+    },
+    "resp_047756a708477b82006a26ff51c82481939f679408d8ce3964": {
+        "task": "Tighten the restaurants in Bangalore and add Kohinoor to it.",
+        "status": "completed",
+        "created_at": 1780940626.900877,
+        "file_name": "BangaloreRestaurantShortlist"
+    },
+    "resp_0974d170a10decf7006a270721825481949fb59d1be273e608": {
+        "task": "discover the best way to learn something",
+        "status": "completed",
+        "created_at": 1780942626.4989061,
+        "file_name": "LearningAnything"
+    }
+}

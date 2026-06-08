@@ -1,5 +1,6 @@
 """
-This module handles audio recording from the system's microphone and captures keyboard events to support push-to-talk functionality.
+This module handles audio recording from the system's microphone, captures keyboard events to support push-to-talk functionality,
+and supports native audio file playback.
 It listens for the Alt/Option key to start and stop audio recording, and records the raw input into standard format bytes.
 
 Technical Details:
@@ -7,6 +8,7 @@ Technical Details:
 - Utilizes threading.Event signals to synchronize key listener events with the main thread.
 - Employs sounddevice.RawInputStream to capture mono, 16-bit PCM integer audio stream data at a given sample rate (e.g., 16000Hz).
 - Operates a callback-driven buffer queue to record chunked mic audio into memory safely without audio dropouts.
+- Provides a global, cross-component interface to trigger synchronous/asynchronous audio file playback on macOS using system utilities.
 """
 
 # Import the sys library to output messages and flush text directly to the console output
@@ -20,6 +22,12 @@ import sounddevice as sd
 
 # Import the keyboard module from pynput to capture real-time keyboard inputs outside the console window
 from pynput import keyboard
+
+# Import the os library to handle file paths, check file existence, and perform file system operations
+import os
+
+# Import the subprocess library to execute system commands and spawn child processes
+import subprocess
 
 # Define a global boolean flag that indicates whether the system is currently recording sound
 is_recording = False
@@ -116,3 +124,61 @@ def record_audio(sample_rate):
             
     # Return the combined audio list converted into a single big string of raw audio bytes
     return b"".join(audio_data_list)
+
+def play_audio(file_path: str, wait: bool = False) -> None:
+    """
+    Universal global utility function to play an audio file on macOS via the native system CLI utility 'afplay'.
+    This function can be imported and executed from any component of the application to deliver audio feedback.
+
+    Technical Details:
+    - Path Resolution: Leverages 'os.path' functions to calculate absolute file system paths.
+      If a relative path is passed, it is combined with the project root directory (inferred from the position of 'audio.py').
+    - Validation: Performs existence checks via 'os.path.exists' to handle missing files and prevent system-level exceptions.
+    - Subprocess Spawning: Calls macOS's 'afplay' utility through the standard 'subprocess' module.
+    - Process Execution Modes:
+      - Asynchronous (wait=False): Utilizes 'subprocess.Popen' to fork a child process that runs concurrently without blocking Python's main GIL.
+      - Synchronous (wait=True): Utilizes 'subprocess.run' to block the calling thread until the child process terminates and returns.
+    - Exception Isolation: Uses broad try-except block trapping to prevent audio failures from crashing the orchestration engine.
+
+    Args:
+        file_path (str): The absolute or project-relative file system path to the target audio file.
+        wait (bool): Flag determining whether the execution blocks the current thread until playback completes.
+    """
+    # Wrap the entire execution block in a try-except structure to catch process, file system, or system-level exceptions
+    try:
+        # Determine the absolute directory path where this source file (audio.py) is located
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        # Compute the root directory of the project by navigating one directory level up from the 'src' folder
+        project_root = os.path.dirname(current_dir)
+        
+        # Verify if the provided file path is absolute using os.path.isabs
+        if not os.path.isabs(file_path):
+            # Resolve relative paths by prefixing them with the calculated project root directory path
+            resolved_path = os.path.join(project_root, file_path)
+        else:
+            # Use the absolute path directly as provided by the caller
+            resolved_path = file_path
+            
+        # Check if the resolved file system path points to an actual file on disk to prevent process spawning failures
+        if not os.path.exists(resolved_path):
+            # Print a diagnostic warning message to the standard error stream detailing the missing audio resource
+            sys.stderr.write(f"[Audio Playback] Error: Audio file not found at path: {resolved_path}\n")
+            # Flush the standard error stream buffer to output the error string immediately to the console
+            sys.stderr.flush()
+            # Return from the function early to prevent executing a subprocess command with a non-existent path
+            return
+            
+        # Determine whether to execute the playback command synchronously or asynchronously based on wait flag
+        if wait:
+            # Execute the 'afplay' command synchronously using subprocess.run, blocking the calling thread until it finishes
+            subprocess.run(["afplay", resolved_path], check=True)
+        else:
+            # Fork a background process via subprocess.Popen to run 'afplay' asynchronously, letting the Python process continue
+            subprocess.Popen(["afplay", resolved_path])
+            
+    # Capture any OS-level errors, subprocess spawn exceptions, or path resolution failures
+    except Exception as e:
+        # Output the exception details to the standard error stream for developer diagnostics and logging
+        sys.stderr.write(f"[Audio Playback] Error playing audio: {e}\n")
+        # Flush the standard error output buffer to ensure immediate visibility of the warning message
+        sys.stderr.flush()
