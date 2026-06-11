@@ -57,17 +57,17 @@ def main():
 
     # Wrap model loading in a try block to handle network, memory, or download errors gracefully
     try:
-        # Define model scale as 'small' for our default Faster-Whisper transcription engine
+        # Define model scale size configuration string variable to select the Whisper small model
         model_size = "small"
         
-        # Print a progress status message showing we are initializing the Whisper model
-        print(f"\nLoading Faster-Whisper {model_size} model (auto-downloading if not cached)...")
+        # Call print to write the model initialization stage message to stdout, warning the user about potential internet downloads
+        print(f"\nLoading Whisper.cpp {model_size}.en model (auto-downloading if not cached)...")
         
-        # Load the model and store it in our models dictionary using 'whisper' as the key
+        # Invoke load_whisper_model in transcriber module and store returned Model object under 'whisper' key in the models dictionary
         models['whisper'] = transcriber.load_whisper_model(model_size)
         
-        # Print success status message showing model setup was successful
-        print(f"✓ Faster-Whisper {model_size} model loaded.")
+        # Write success completion symbol and status message to stdout confirming Whisper.cpp model initialization was successful
+        print(f"✓ Whisper.cpp {model_size}.en model loaded.")
 
         # Print progress status message showing command translator LLM loading is starting
         print(f"\nLoading command translation model ({config.BASE_MODEL} + LoRA)...")
@@ -130,8 +130,8 @@ def main():
 
     # Enter the main recording loop block, capturing exceptions to clean up properly on crash/interrupt
     try:
-        # Define the human-friendly label for logs corresponding to our Whisper Small engine choice
-        model_label = "Faster-Whisper Small"
+        # Define the logging label identifier string representation corresponding to the active Whisper.cpp small model backend
+        model_label = "Whisper.cpp (small)"
         
         # Run the recording loop indefinitely until the user cancels via KeyboardInterrupt
         while True:
