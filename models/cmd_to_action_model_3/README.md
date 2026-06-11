@@ -35,5 +35,5 @@ This model is plugged into a larger ecosystem/app called Lucky.
 
 The SLM has been trained on a dataset of 2,374 samples, available at 
 ```
-models/cmd_to_action_model_3/dataset.csv
+https://huggingface.co/datasets/thakkar-puru/compuer-use-commands-and-json
 ```
