@@ -123,6 +123,8 @@ def translate_finder_empty_trash(action: actions.FinderEmptyTrash) -> str:
     Translates finder.empty_trash into an AppleScript command.
     - Instructs the Finder application to empty the system trash bin.
     """
+    audio.play_audio("audio/done.mp3", wait=False)
+
     # Generate AppleScript to empty system trash
     return format_as_heredoc("tell application \"Finder\" to empty trash")
 
@@ -1209,7 +1211,7 @@ def translate_calendar_open(action: actions.CalendarOpen) -> str:
     # Formulate activation command
     return format_as_heredoc("""
         tell application "Calendar"
-            activate 
+            activate
             reopen
         end tell""")
 

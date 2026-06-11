@@ -16,3 +16,6 @@ __pycache__/
 
 # legacy code
 legacy/
+
+# videos
+demo-video/

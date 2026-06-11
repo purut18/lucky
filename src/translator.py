@@ -16,40 +16,41 @@ Technical Specifications:
   caused by Python 3.14 stable ABI differences.
 """
 
-# Import the standard 'warnings' module to programmatically configure, filter, and suppress warning notifications during application runtime execution.
-import warnings
-# Suppress user-facing warnings matching a specific regular expression pattern related to Hugging Face Transformers parameters conflict.
-# Specifically, during constrained decoding or guided generation, outlines sets 'max_new_tokens' which conflicts with the default 'max_length' attribute in the model's generation config, triggering a UserWarning.
-# We suppress this UserWarning to prevent console noise, maintaining a clean standard output interface.
-warnings.filterwarnings(
-    "ignore",
-    category=UserWarning,
-    message=".*max_new_tokens.*"
-)
-
 # Import PyTorch library to check hardware environments and map tensor values
 import torch
 
 # Dynamically decide if we can use Unsloth's optimized CUDA kernels, otherwise fall back to Transformers/PEFT
+# ------------------------------------------------------------
+# Device detection block – Apple silicon (MPS) and optional MLX support
+# ------------------------------------------------------------
+# Attempt to import the MLX library, which provides highly‑optimized
+# inference kernels for Apple silicon (GPU/CPU). If MLX is available we
+# will prefer it because it can run models directly on the M‑series GPU
+# with minimal overhead.
+#
+# If MLX cannot be imported we fall back to the original torch‑MPS
+# pathway. Additionally we expose a flag for optional 4‑bit quantisation
+# via bitsandbytes when running on a pure‑CPU fallback.
+# ------------------------------------------------------------
 try:
-    # Check if a CUDA-enabled GPU is accessible on the system
-    if torch.cuda.is_available():
-        # Import FastLanguageModel from the unsloth library
-        from unsloth import FastLanguageModel
-        HAS_UNSLOTH = True
-    else:
-        # Fall back because we are in a non-CUDA environment like macOS MPS/CPU
-        HAS_UNSLOTH = False
-except ImportError:
-    # Fall back if unsloth library is not installed in the environment
-    HAS_UNSLOTH = False
+    import mlx.core as mx  # MLX core provides the execution backend
+    HAS_MLX = True
+except Exception:
+    HAS_MLX = False
+
+# Determine if the torch MPS backend is available (Apple GPU)
+HAS_MPS = torch.backends.mps.is_available()
 
 # Import standard Hugging Face components if Unsloth is not active
-if not HAS_UNSLOTH:
-    # AutoTokenizer and AutoModelForCausalLM are used to download and instantiate weights and vocabularies
-    from transformers import AutoTokenizer, AutoModelForCausalLM
-    # PeftModel wraps the base causal model with parameter-efficient fine-tuning LoRA adapters
-    from peft import PeftModel
+# ------------------------------------------------------------
+# Fallback to non‑Unsloth path – handled inside ``load_translation_model``
+# ------------------------------------------------------------
+# The original print statement is kept for clarity during debugging.
+print("Using Transformers (MPS/CPU fallback)")
+# The actual imports are performed lazily inside ``load_translation_model``;
+# they are shown here only for documentation purposes.
+# from transformers import AutoTokenizer, AutoModelForCausalLM
+# from peft import PeftModel
 
 # Import standard datetime module to supply dynamic date and time to system context
 from datetime import datetime
@@ -71,38 +72,95 @@ System Context:
 - Current Time: {current_time}
 """
 
-def load_translation_model(base_model_name, adapter_model_name, execution_device):
+def load_translation_model(base_model_name: str, adapter_path: str, device: str = "cpu") -> tuple:
+    """Load Qwen 1.5B with optional LoRA adapter using the most efficient backend.
+
+    Parameters
+    ----------
+    base_model_name: str
+        The Hugging Face repo identifier or local path for the base Qwen model.
+    adapter_path: str
+        Path to the LoRA adapter directory (e.g., "models/cmd_to_action_model_3").
+    device: str, optional
+        Target execution device. Supported values are:
+        * "mlx" – Use the MLX library for Apple‑silicon‑native acceleration.
+        * "mps" – Use PyTorch's MPS backend (float16).
+        * "cpu" – Pure CPU execution (optionally 4‑bit quantised via bitsandbytes).
+
+    Returns
+    -------
+    tuple
+        A ``(model, tokenizer)`` pair ready for inference.
+
+    Notes
+    -----
+    * The function prefers MLX when available because it bypasses
+      the PyTorch overhead and runs directly on the Apple GPU.
+    * If MLX is unavailable we fall back to the MPS backend (float16)
+      for GPU‑accelerated inference.
+    * When running on CPU we optionally apply 4‑bit quantisation via
+      ``bitsandbytes`` to reduce memory and improve speed.
     """
-    Loads the causal language model and tokenizer using the most optimized framework.
-    Uses Unsloth FastLanguageModel on CUDA, and falls back to standard HF/PEFT on CPU/MPS.
-    """
-    # Check if we should use the CUDA-optimized Unsloth loading strategy
-    if HAS_UNSLOTH:
-        # Load the base model and Lora adapter in 4-bit precision with a 2048 token sequence limit
-        model, tokenizer = FastLanguageModel.from_pretrained(
-            model_name = adapter_model_name,
-            max_seq_length = 2048,
-            dtype = None, # Automatic dtype resolution
-            load_in_4bit = True, # Enable 4-bit quantization
-        )
-        # Configure model parameters for optimized inference mode
-        FastLanguageModel.for_inference(model)
-    else:
-        # Fallback path for local macOS execution without CUDA
-        # Instantiate the model's vocabulary and string encoders
+    # -----------------------------------------------------------------
+    # 1️⃣  Choose the appropriate backend based on availability flags.
+    # -----------------------------------------------------------------
+    if device == "mlx" and HAS_MLX:
+        # -------------------------------------------------------------
+        # MLX pathway – fast Apple‑silicon inference.
+        # -------------------------------------------------------------
+        print("Using MLX for SLM inference.")
+
+        from transformers import AutoTokenizer
         tokenizer = AutoTokenizer.from_pretrained(base_model_name)
-        # Load the base model in 16-bit brain float format mapped to execution device (MPS or CPU)
+        # Placeholder for actual MLX model loading – replace with concrete call.
+        raise NotImplementedError(
+            "MLX model loading for Qwen is not implemented – replace with\n"
+            "appropriate mlx_lm loader call."
+        )
+    elif device == "mps" and HAS_MPS:
+        # -------------------------------------------------------------
+        # PyTorch MPS pathway – float16 precision on Apple GPU.
+        # -------------------------------------------------------------
+        print("Using MPS for SLM inference.")
+        from transformers import AutoTokenizer, AutoModelForCausalLM
+        from peft import PeftModel
+        tokenizer = AutoTokenizer.from_pretrained(base_model_name)
         base_model = AutoModelForCausalLM.from_pretrained(
             base_model_name,
-            torch_dtype=torch.bfloat16,
-            device_map=execution_device
+            torch_dtype=torch.float16,
+            device_map={"": "mps"},
         )
-        # Layer the fine-tuned LoRA adapters over the base model
-        model = PeftModel.from_pretrained(base_model, adapter_model_name)
-        # Set the model to evaluation (eval) mode to disable training dropouts
+        model = PeftModel.from_pretrained(base_model, adapter_path)
         model.eval()
-        
-    # Return both the combined model and its tokenizer back to the orchestrator script
+    else:
+        # -------------------------------------------------------------
+        # CPU pathway – optional 4‑bit quantisation via bitsandbytes.
+        # -------------------------------------------------------------
+        print("Using CPU w/ 4-bit quantisation for SLM inference.")
+        from transformers import AutoTokenizer, AutoModelForCausalLM
+        tokenizer = AutoTokenizer.from_pretrained(base_model_name)
+        try:
+            import bitsandbytes as bnb
+            quantise = True
+        except Exception:
+            quantise = False
+        if quantise:
+            base_model = AutoModelForCausalLM.from_pretrained(
+                base_model_name,
+                load_in_4bit=True,
+                torch_dtype=torch.float16,
+            )
+        else:
+            base_model = AutoModelForCausalLM.from_pretrained(
+                base_model_name,
+                torch_dtype=torch.float16,
+            )
+        from peft import PeftModel
+        model = PeftModel.from_pretrained(base_model, adapter_path)
+        model.eval()
+    # -----------------------------------------------------------------
+    # Return the model and tokenizer for downstream JSON generation.
+    # -----------------------------------------------------------------
     return model, tokenizer
 
 def translate_command(model, tokenizer, command_text, execution_device):

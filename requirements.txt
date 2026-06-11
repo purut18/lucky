@@ -2,8 +2,6 @@ sounddevice
 vosk
 numpy
 pynput
-faster-wh
-isper
 torch
 transformers
 peft
@@ -11,3 +9,4 @@ python-dotenv
 unsloth
 outlines
 openai
+pywhispercpp

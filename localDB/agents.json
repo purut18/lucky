@@ -28,5 +28,65 @@
         "status": "completed",
         "created_at": 1780942626.4989061,
         "file_name": "LearningAnything"
+    },
+    "resp_048d55f133c54706006a279c816734819097866d19a274da89": {
+        "task": "find out what the thesis is on AI startups in light speed venture research.",
+        "status": "completed",
+        "created_at": 1780980867.1449869,
+        "file_name": "LightspeedAIStartupThesis"
+    },
+    "resp_001b08f109f0e9b8006a27a2dba2288196b17334ee7159ceac": {
+        "task": "research theses of light speed ventures and summarize their views on AI startups.",
+        "status": "failed",
+        "created_at": 1780982492.784737,
+        "file_name": null
+    },
+    "resp_0cda6f3d62ca958c006a284ea23354819391ca1dfb35599dba": {
+        "task": "Research the best ways to have a kid.",
+        "status": "completed",
+        "created_at": 1781026467.063798,
+        "file_name": "ParenthoodPaths"
+    },
+    "resp_0facfe1774ab54cc006a29b14262f8819084d147aafba8bc56": {
+        "task": "Find the thesis of light speed ventures and summarize their stance on AI startups.",
+        "status": "completed",
+        "created_at": 1781117251.591844,
+        "file_name": "LightspeedAIThesis"
+    },
+    "resp_0b29ccb1d043723d006a29b71c6d6c8194951be8d103d9ea82": {
+        "task": "start an agent, do a deep research on marketing plans for a MacBook local agent.",
+        "status": "completed",
+        "created_at": 1781118749.3388429,
+        "file_name": "MacBookLocalAgentMarketingPlan"
+    },
+    "resp_0a72f1e3e76ebba8006a29bb05c52881938e06dc801fb91d29": {
+        "task": "write a detailed marketing plan for a local Mac agent",
+        "status": "completed",
+        "created_at": 1781119750.531083,
+        "file_name": "LocalMacMarketingPlan"
+    },
+    "resp_06e6e9d4c1392a43006a29bff849b48196adbebc9f1d0b16d6": {
+        "task": "research a marketing plan for a local MacBook",
+        "status": "completed",
+        "created_at": 1781121017.1191812,
+        "file_name": "MacBookMarketingPlan"
+    },
+    "resp_013f7d5b552fe13b006a29c1488fd0819782864b167ada7748": {
+        "task": "research the marketing plan for a local MacBook agent.",
+        "status": "completed",
+        "created_at": 1781121353.366817,
+        "file_name": "LocalMacBookMarketingPlan"
+    },
+    "resp_044b3619f2d99f21006a29c330340081959bb7bb895c364a6b": {
+        "task": "Do a deep research on a marketing plan for a local MacBook agent.",
+        "status": "completed",
+        "created_at": 1781121840.9171011,
+        "file_name": "LocalMacBookMarketingPlan"
+    },
+    "resp_0adbaa607f559d63006a29c73aad908190b25421939ce0ccf9": {
+        "task": "research the best marketing plan for a MacBook.",
+        "status": "completed",
+        "created_at": 1781122875.680537,
+        "file_name": "MacBookMarketingPlan"
     }
 }
