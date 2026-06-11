@@ -52,8 +52,17 @@ ANSI_RED = "\033[91m"
 # Define the ANSI escape sequence to reset terminal font styles and colors to default
 ANSI_RESET = "\033[0m"
 
-# Absolute file system path pointing to our local JSON tracking database file
-DATABASE_FILE_PATH = "/Users/puruthakkar/Documents/projects/lucky/localDB/agents.json"
+# Compute the absolute directory path of the active project root dynamically at runtime.
+# os.path.abspath resolves any relative dots or links into a fully expanded, canonical path structure.
+# __file__ is a Python magic global variable containing the absolute or relative path of this specific script file ('src/agent.py').
+# The first call to os.path.dirname retrieves the container directory of this file, which resolves to the 'src' directory.
+# The second nested call to os.path.dirname ascends another level to retrieve the root directory of the repository/project.
+PROJECT_ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Construct the absolute target path pointing to the local JSON database file inside the root's localDB folder.
+# os.path.join handles file system separators cross-platform (e.g. Unix-based '/' and Windows-based '\') dynamically.
+# This ensures that the application remains fully portable, working seamlessly across different users and execution environments.
+DATABASE_FILE_PATH = os.path.join(PROJECT_ROOT_DIR, "localDB", "agents.json")
 
 # Synchronization lock object to guarantee mutually exclusive access to the local JSON file
 db_lock = threading.Lock()
@@ -77,24 +86,55 @@ class AgentResultSchema(BaseModel):
 def _load_database() -> dict:
     """
     Reads the local tracking database from the JSON file.
-    If the file does not exist or fails to parse, returns an empty dictionary.
+    If the file does not exist, it creates the folder and the file with an empty JSON object.
+    If the file fails to parse, returns an empty dictionary.
     
     Returns:
         dict: The mapping of response IDs to their metadata records.
     """
-    # Verify if the database file is physically present in the file system
+    # Verify if the database file is physically present in the local file system.
+    # os.path.exists performs a low-level system call to verify the existence of the path.
     if not os.path.exists(DATABASE_FILE_PATH):
-        # Return an empty dictionary to signal no previous records exist
+        # Extract the directory portion of the absolute database path.
+        # os.path.dirname resolves the container directory (e.g. 'localDB') for creating it recursively.
+        db_dir = os.path.dirname(DATABASE_FILE_PATH)
+        # Verify if the target parent folder exists in the physical file system.
+        if not os.path.exists(db_dir):
+            try:
+                # Recursively generate directories along the path.
+                # os.makedirs raises OSError if permissions are lacking or paths are blocked.
+                os.makedirs(db_dir, exist_ok=True)
+            except Exception as e:
+                # Write errors to the system standard error stream to notify the user of filesystem errors.
+                sys.stderr.write(f"[LLM Agent DB] Error creating directory {db_dir}: {e}\n")
+                # Flush the stream buffer to render the output in the console immediately.
+                sys.stderr.flush()
+        try:
+            # Open the file in write mode, replacing any existing content with UTF-8 text encoding.
+            # Using 'with' block ensures the file descriptor is securely closed even if exceptions occur.
+            with open(DATABASE_FILE_PATH, "w", encoding="utf-8") as f:
+                # Write an empty JSON object string representation to initialize the local database file.
+                # json.dump serializes python dictionary into JSON formatting with clean indentation of 4 spaces.
+                json.dump({}, f, indent=4)
+        except Exception as e:
+            # Write errors to standard error if file creation or serialization fails.
+            sys.stderr.write(f"[LLM Agent DB] Error initializing file {DATABASE_FILE_PATH}: {e}\n")
+            # Flush stderr to output the error logs immediately.
+            sys.stderr.flush()
+        # Return an empty dictionary because the newly created file has no transaction history records yet.
         return {}
-    # Wrap reading in a try block to gracefully capture file corruption errors
+    # Wrap reading in a try block to gracefully capture file corruption errors or read blockages.
     try:
-        # Open the file in read mode enforcing standard utf-8 encoding
+        # Open the file in read mode enforcing standard utf-8 encoding.
+        # Standardize on UTF-8 to prevent character encoding mismatch issues across platforms.
         with open(DATABASE_FILE_PATH, "r", encoding="utf-8") as f:
-            # Parse and return the JSON object as a Python dictionary
+            # Parse and return the JSON object as a Python dictionary structure.
+            # json.load decodes the JSON formatted string from the file stream into python dictionary keys and values.
             return json.load(f)
-    # Catch any deserialization or file access exceptions
+    # Catch any deserialization, read access, or permission exceptions.
+    # This acts as a fallback to ensure application uptime even if database file gets corrupted.
     except Exception:
-        # Fall back to returning an empty dictionary to keep execution stable
+        # Fall back to returning an empty dictionary to keep background daemon threads running stably.
         return {}
 
 

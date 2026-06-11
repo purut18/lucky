@@ -19,3 +19,6 @@ legacy/
 
 # videos
 demo-video/
+
+# local database directory generated dynamically at runtime for agent tracking
+localDB/
