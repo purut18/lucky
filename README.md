@@ -6,9 +6,12 @@ Lucky is a fully-local Macbook agent for hands-free system automation and deep b
 For complex requests requiring reasoning and web search, the system automatically routes tasks to an autonomous background thread that runs search queries via a cloud-based reasoning model, persisting task states durably in a local database.
 
 ---
-# Demo Video
+## Demo Video
 
 https://github.com/user-attachments/assets/8c5a8d9d-955d-4992-b38e-fc7a9699c7cd
+
+---
+## NOTE: NOT ACTIVELY MAINTAINED. NO NEW FEATURES/IMPROVEMENTS PLANNED.
 
 ---
 
